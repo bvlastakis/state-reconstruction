@@ -13,8 +13,8 @@ from utilities import complexStack, complexUnstack, interpDispGrid
 BASIS = 4
 
 class CV_Measurement(object):
-    """Organizes an imported or simulated data file of a continuous variable measurement 
-    which contains a list displacements and 'raw' heterodyne integrated voltages or 
+    """Organizes an imported or simulated data file of a continuous variable measurement
+    which contains a list displacements and 'raw' heterodyne integrated voltages or
     average measurement probabilities.
     """
 
@@ -34,10 +34,10 @@ class CV_Measurement(object):
         self.design_matrix = None
 
     def importData(self, file_path):
-        """Imports data from file path. 
+        """Imports data from file path.
 
-        Note: Current data format must be tab delimited and the first column 
-        should contain values for real displacements and the first row should 
+        Note: Current data format must be tab delimited and the first column
+        should contain values for real displacements and the first row should
         contain values for imaginary displacements. (See 'sample_code/X_E.txt').
         """
 
@@ -48,12 +48,12 @@ class CV_Measurement(object):
         #read file as float
         data_frame = pandas.read_csv(file_path, delimiter = '\t', index_col=0)
         data_frame.columns = data_frame.columns.astype(np.float64)
-        
+
         self.data_frame = data_frame
         self.total_measurements = sum(data_frame.count())
         self.data_raw = data_frame.values.T
         self.data_to_fit = self.data_raw
-        
+
         #calculate displacement grid
         displace_real = data_frame.index.values.astype('cfloat')
         displace_imag = data_frame.columns.values.astype('cfloat')
@@ -63,103 +63,14 @@ class CV_Measurement(object):
         self.data_title = 'Measured data'
 
     def addNoiseData(self, noise_amp):
-        """Adds noise to the 'data_raw'. This could be useful for testing the 
+        """Adds noise to the 'data_raw'. This could be useful for testing the
         sensitivity to noisey measurements.
         """
         noise = np.random.normal(0, noise_amp, self.data_raw.shape)
         self.data_to_fit = self.data_raw + noise
 
-    def plotData(self, data_frame_plot = False):
-        """Plots the imported or simulated data found in 'data_raw'."""
-        if self.data_frame is not None and data_frame_plot is True:
-            self.data_frame.plot()
-        else:
-            fig_shape = ( np.max(np.real(self.displacements)), 
-                                np.max(np.imag(self.displacements)) )
-            fig_shape = fig_shape/np.max(fig_shape)
-            fig = plt.figure(figsize = 10*fig_shape)
-            x, y = np.real(self.displacements), np.imag(self.displacements)
-            ax = fig.add_subplot(111) #, projection='3d')
-            ax.pcolor(x, y, self.data_to_fit)
-            ax.axis([x.min(), x.max(), y.min(), y.max()])
-            ax.set_title(self.data_title)
-
-    def plotDesign(self, state = qp.fock_dm(BASIS, 0), title = [''], show = True):
-        """Plot the CV representation of a density matrix given the calculated 
-        design matrix. This can be used as a check to make sure that the creadted 
-        design matrix creates the expected quasi-probability distribution.
-        """
-        if self.design_matrix is None:
-            raise ValueError("a design matrix must be defined")
-
-        #truncate state to basis defined by the design matrix
-        if isinstance(state, qp.Qobj):
-            state.data = state.data[:self.basis, :self.basis]
-            D_flat = state.data.toarray().reshape((self.basis**2, 1))
-        else:
-            state = state[:self.basis, :self.basis]
-            D_flat = state.reshape((self.basis**2,1))
-
-        #unpack complex arrays into their real counterparts
-        D_complex = complexStack(D_flat)
-        M_complex = self.design_matrix_complex
-
-        R_complex = np.split( np.dot(M_complex,D_complex), 2)
-        R = R_complex[0].reshape(self.displacements.shape)
-
-        #the to-be plotted response variables calculated
-        self.design_response = R
-
-        if show is True:
-            fig_shape = ( np.max(np.real(self.displacements)), 
-                                np.max(np.imag(self.displacements)) )
-            fig_shape = fig_shape/np.max(fig_shape)
-            fig = plt.figure(figsize = 10*fig_shape)            
-            ax = fig.add_subplot(111)
-            ax.contourf(np.real(self.displacements), np.imag(self.displacements),
-                              self.design_response, 200)
-            ax.set_title(title)
-
-        return self.design_response
-
-    def plotWigner(self, state, dispGrid = None, factor = 3, title = [''], show = True):
-        """Plot the wigner function of a given state using a grid of displacements
-        that is interpolated from the given displacement grid.
-        """
-        if not isinstance(state, qp.Qobj):
-            state = qp.Qobj(state)
-        # if no displacement grid given, interpolate current defined displacements
-        if dispGrid is None:
-            dispGrid = interpDispGrid(self.displacements, factor)
-
-        real_vec = np.real(dispGrid[0,:])
-        imag_vec = np.imag(dispGrid[:,0])
-
-        wPlot = np.pi / 2 * qp.wigner(state, real_vec, imag_vec, g = 2)
-
-        if show is True:
-            fig_shape = ( np.max(np.real(self.displacements)), 
-                                np.max(np.imag(self.displacements)) )
-            fig_shape = fig_shape/np.max(fig_shape)
-            fig = plt.figure(figsize = 10*fig_shape)
-            ax = fig.add_subplot(111) #, projection='3d')
-            ax.contourf(np.real(dispGrid), np.imag(dispGrid),
-                              wPlot, 200)
-            ax.set_title(title)
-        
-        return wPlot
-
-    def plotDiagonal(self, state):
-
-        state_diagonal = np.real( state.diagonal() )
-        n = range(len(state_diagonal))
-
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.bar(n, state_diagonal[n])
-        ax.set_title('Reconstructed photon number probability')
-        ax.set_xlabel('Photon number')
-        ax.set_ylabel('Probability')
+    def calcDesignMatrix(self):
+        pass
 
     def regression(self, method = 'inversion', tolerance = 1e-6):
 
@@ -199,10 +110,102 @@ class CV_Measurement(object):
         else:
             raise TypeError("method must be either 'inversion', 'convex', or 'minimize'")
 
-        def padZeros(self):
+    def plotData(self, data_frame_plot = False):
+        """Plots the imported or simulated data found in 'data_raw'."""
+        if self.data_frame is not None and data_frame_plot is True:
+            self.data_frame.plot()
+        else:
+            fig_shape = ( np.max(np.real(self.displacements)),
+                                np.max(np.imag(self.displacements)) )
+            fig_shape = fig_shape/np.max(fig_shape)
+            fig = plt.figure(figsize = 10*fig_shape)
+            x, y = np.real(self.displacements), np.imag(self.displacements)
+            ax = fig.add_subplot(111) #, projection='3d')
+            ax.pcolor(x, y, self.data_to_fit)
+            ax.axis([x.min(), x.max(), y.min(), y.max()])
+            ax.set_title(self.data_title)
 
-            self.data_to_fit
-            pass
+    def plotDesign(self, state = qp.fock_dm(BASIS, 0), title = [''], show = True):
+        """Plot the CV representation of a density matrix given the calculated
+        design matrix. This can be used as a check to make sure that the creadted
+        design matrix creates the expected quasi-probability distribution.
+        """
+        if self.design_matrix is None:
+            raise ValueError("a design matrix must be defined")
+
+        #truncate state to basis defined by the design matrix
+        if isinstance(state, qp.Qobj):
+            state.data = state.data[:self.basis, :self.basis]
+            D_flat = state.data.toarray().reshape((self.basis**2, 1))
+        else:
+            state = state[:self.basis, :self.basis]
+            D_flat = state.reshape((self.basis**2,1))
+
+        #unpack complex arrays into their real counterparts
+        D_complex = complexStack(D_flat)
+        M_complex = self.design_matrix_complex
+
+        R_complex = np.split( np.dot(M_complex,D_complex), 2)
+        R = R_complex[0].reshape(self.displacements.shape)
+
+        #the to-be plotted response variables calculated
+        self.design_response = R
+
+        if show is True:
+            fig_shape = ( np.max(np.real(self.displacements)),
+                                np.max(np.imag(self.displacements)) )
+            fig_shape = fig_shape/np.max(fig_shape)
+            fig = plt.figure(figsize = 10*fig_shape)
+            ax = fig.add_subplot(111)
+            ax.contourf(np.real(self.displacements), np.imag(self.displacements),
+                              self.design_response, 200)
+            ax.set_title(title)
+
+        return self.design_response
+
+    def plotWigner(self, state, dispGrid = None, factor = 3, title = [''], show = True):
+        """Plot the wigner function of a given state using a grid of displacements
+        that is interpolated from the given displacement grid.
+        """
+        if not isinstance(state, qp.Qobj):
+            state = qp.Qobj(state)
+        # if no displacement grid given, interpolate current defined displacements
+        if dispGrid is None:
+            dispGrid = interpDispGrid(self.displacements, factor)
+
+        real_vec = np.real(dispGrid[0,:])
+        imag_vec = np.imag(dispGrid[:,0])
+
+        wPlot = np.pi / 2 * qp.wigner(state, real_vec, imag_vec, g = 2)
+
+        if show is True:
+            fig_shape = ( np.max(np.real(self.displacements)),
+                                np.max(np.imag(self.displacements)) )
+            fig_shape = fig_shape/np.max(fig_shape)
+            fig = plt.figure(figsize = 10*fig_shape)
+            ax = fig.add_subplot(111) #, projection='3d')
+            ax.contourf(np.real(dispGrid), np.imag(dispGrid),
+                              wPlot, 200)
+            ax.set_title(title)
+
+        return wPlot
+
+    def plotDiagonal(self, state):
+
+        state_diagonal = np.real( state.diagonal() )
+        n = range(len(state_diagonal))
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.bar(n, state_diagonal[n])
+        ax.set_title('Reconstructed photon number probability')
+        ax.set_xlabel('Photon number')
+        ax.set_ylabel('Probability')
+
+    def padZeros(self):
+
+        self.data_to_fit
+        pass
 
 
 class CV_Wigner(CV_Measurement):
@@ -223,7 +226,7 @@ class CV_Wigner(CV_Measurement):
 
         disp_diff = self.displacements[0][0] - self.displacements[1][1]
         d_real, d_imag = np.real(disp_diff), np.imag(disp_diff)
-        
+
         if method is 'trapezoid':
             #assumes equal spacing along x and y axes
             to_int = self.data_raw
@@ -234,7 +237,7 @@ class CV_Wigner(CV_Measurement):
             normalizer = np.pi / (2 * normalizer * d_real * d_imag)
             self.data_norm = normalizer * self.data_raw
             self.data_to_fit = self.data_norm
-            
+
             return normalizer
 
         if method is 'fit':
@@ -249,7 +252,7 @@ class CV_Wigner(CV_Measurement):
             self.data_to_fit = self.data_norm
 
             return normalizer
-            
+
     def calcDesignMatrix(self, basis = None, method = 'iterative'):
         """Calculate the design matrix for the wigner function with a given
         set of displacements.
@@ -258,7 +261,7 @@ class CV_Wigner(CV_Measurement):
         if self.basis is None:
             raise ValueError("basis must be defined to calculate design matrix")
 
-        self.design_matrix = designW(basis = self.basis, dispGrid = self.displacements, 
+        self.design_matrix = designW(basis = self.basis, dispGrid = self.displacements,
                                         method = method)
         # convert the design matrix into a real-valued matrix for regression
         M_shape = self.design_matrix.shape
@@ -277,8 +280,8 @@ class CV_Wigner(CV_Measurement):
             mesh_Real, mesh_Imag = np.meshgrid(dispArray, dispArray)
             dispGrid = mesh_Real + 1j * mesh_Imag
 
-        wigner_no_noise = 0.5 * np.pi * qp.wigner( state, np.real(dispGrid[0,:]), 
-                                                np.imag(dispGrid[:,0]), g = 2 ) 
+        wigner_no_noise = 0.5 * np.pi * qp.wigner( state, np.real(dispGrid[0,:]),
+                                                np.imag(dispGrid[:,0]), g = 2 )
         # calculate and add random noise to produced wigner function
         noise = np.random.normal(0, noise_amp, wigner_no_noise.shape)
         sim_wigner = wigner_no_noise + noise
@@ -293,7 +296,7 @@ class CV_Qfunction(CV_Measurement):
     """
 
     def __init__(self, photon_projection):
-        
+
         super(CV_Qfunction, self).__init__()
 
         self.photon_projection = photon_projection
@@ -306,9 +309,9 @@ class CV_Qfunction(CV_Measurement):
         if self.basis is None:
             raise ValueError("basis must be defined to calculate design matrix")
 
-        self.design_matrix = designQ(basis = self.basis, 
-                                        dispGrid = self.displacements, 
-                                        photon_proj = self.photon_projection, 
+        self.design_matrix = designQ(basis = self.basis,
+                                        dispGrid = self.displacements,
+                                        photon_proj = self.photon_projection,
                                         method = method)
 
         # convert the design matrix into a real-valued matrix for regression
@@ -374,9 +377,9 @@ class CV_QCWigner(CV_Measurement):
         if self.basis is None:
             raise ValueError("basis must be defined to calculate design matrix")
 
-        self.design_matrix = designCW(basis = self.basis, dispGrid = self.displacements, 
+        self.design_matrix = designCW(basis = self.basis, dispGrid = self.displacements,
                                         q_proj = self.qubit_projection, method = method)
-        
+
         M_shape = self.design_matrix.shape
         M_flat = self.design_matrix.reshape(np.product(M_shape[0:2]),
                                           np.product(M_shape[2:4]))
@@ -398,9 +401,9 @@ class CV_QCWigner(CV_Measurement):
         projector = qp.tensor(proj, qp.identity(basis))
         proj_state = projector.dag() * state * projector
         proj_prob = proj_state.norm()
-        wigner_no_noise = 0.5 * np.pi * qp.wigner( proj_state.unit(), 
-                                                np.real(dispGrid[0,:]), 
-                                                np.imag(dispGrid[:,0]), g = 2 ) 
+        wigner_no_noise = 0.5 * np.pi * qp.wigner( proj_state.unit(),
+                                                np.real(dispGrid[0,:]),
+                                                np.imag(dispGrid[:,0]), g = 2 )
         # calculate and add random noise to produced wigner function
         noise = np.random.normal(0, noise_amp, wigner_no_noise.shape)
         sim_wigner = wigner_no_noise + noise
