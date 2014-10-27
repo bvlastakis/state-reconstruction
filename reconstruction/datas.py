@@ -6,16 +6,16 @@ import pandas
 import scipy.optimize
 
 from design import designW, designQ, designCW
-from regression import reg_inversion, reg_cvx, reg_minimize
+from regression import reg_inversion, reg_cvx, reg_minimize, reg_speedy
 from utilities import complexStack, complexUnstack, interpDispGrid
 
-from data import CV_Wigner
+from data import CV_Measurement, CV_QCWigner
 
 BASIS = 4
 
-class CV_Measurements(object):
+class CV_Measurements(CV_Measurement):
     """Organizes a list of all imported data files through 'CV_Measurement'
-    and prepares the data for density matrix reconstruction. 
+    and prepares the data for density matrix reconstruction.
 
     Note: this will be important for multiple sets of measurements, especially
     of generalized Q-functions and qubit-cavity Tomography.
@@ -24,7 +24,7 @@ class CV_Measurements(object):
     def __init__(self, measurements = {}):
         #import initial list of measurement instances
         self.msmts = measurements
-        self.q_ops = { 'I':qp.identity(2), 'X': qp.sigmax(), 
+        self.q_ops = { 'I':qp.identity(2), 'X': qp.sigmax(),
                         'Y':-qp.sigmay(), 'Z':qp.sigmaz() }
 
     def appendMsmt(self, key, measurement):
@@ -40,6 +40,7 @@ class CV_Measurements(object):
 
             temp = measurement.data_to_fit
             temp = temp.reshape( (temp.size,1) )
+
             if data is None:
                 data = temp
             else:
@@ -71,12 +72,13 @@ class CV_Measurements(object):
             else:
                 dMat = np.vstack( (dMat, temp))
 
+        self.design_matrix = dMat
         dMat_stack = complexStack(dMat)
-        self.design_matrix = dMat_stack
+        self.design_matrix_complex = dMat_stack
 
     def addNoiseData(self, noise_amp):
-        """Adds noise to the 'data_raw'. This could be useful for testing the 
-        sensitivity to noisey measurements.
+        """Adds noise to the 'data_raw'. This could be useful for testing the
+        sensitivity to noisy measurements.
         """
         noise = np.random.normal(0, noise_amp, self.data_to_fit.shape)
         self.data_to_fit = self.data_to_fit + noise
@@ -89,7 +91,7 @@ class CV_Measurements(object):
         N = 2 * self.basis
 
         # real-valued design matrix
-        M = self.design_matrix
+        M = self.design_matrix_complex
 
         W_flat = self.data_to_fit.reshape( (self.data_to_fit.size, 1) )
         # real-valued response vector
@@ -102,6 +104,14 @@ class CV_Measurements(object):
             #   the problem: Min(M*x - W) by solving for invM  = (M.T * M)^-1 * M.T
             #   and calculating x^hat = invM * W.
             self.density_matrix_inv = reg_inversion(M, W, N,)
+            self.rho = self.density_matrix_inv
+            return self.density_matrix_inv
+
+        elif method is 'speedy':
+            # perform linear regression by matrix inversion where we solve
+            #   the problem: Min(M*x - W) by solving for invM  = (M.T * M)^-1 * M.T
+            #   and calculating x^hat = invM * W.
+            self.density_matrix_inv = reg_speedy(M, W, N,)
             self.rho = self.density_matrix_inv
             return self.density_matrix_inv
 
@@ -121,8 +131,8 @@ class CV_Measurements(object):
             raise TypeError("method must be either 'inversion', 'convex', or 'minimize'")
 
     def plotDesign(self, state = qp.fock_dm(BASIS, 0), title = [''], show = True):
-        """Plot the CV representation of a density matrix given the calculated 
-        design matrix. This can be used as a check to make sure that the creadted 
+        """Plot the CV representation of a density matrix given the calculated
+        design matrix. This can be used as a check to make sure that the creadted
         design matrix creates the expected quasi-probability distribution.
         """
         if self.design_matrix is None:
@@ -148,11 +158,11 @@ class CV_Measurements(object):
         self.design_response = R
 
         if show is True:
-            #fig_shape = ( np.max(np.real(self.displacements)), 
+            #fig_shape = ( np.max(np.real(self.displacements)),
             #                    np.max(np.imag(self.displacements)) )
             #fig_shape = fig_shape/np.max(fig_shape)
-            #fig = plt.figure(figsize = 10*fig_shape)  
-            fig = plt.figure()          
+            #fig = plt.figure(figsize = 10*fig_shape)
+            fig = plt.figure()
             ax = fig.add_subplot(111)
             #ax.contourf(np.real(self.displacements), np.imag(self.displacements),
             #                  self.design_response, 200)

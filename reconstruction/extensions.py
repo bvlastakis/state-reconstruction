@@ -1,5 +1,5 @@
-import qutip_plus as qp
-from data import CV_Measurements
+import qutip as qp
+from datas import CV_Measurements
 import numpy as np
 
 
@@ -27,8 +27,8 @@ class Bell_Cat(CV_Measurements):
                         1j * qp.coherent(N, -self.dispAmp) ).unit()
         mjCat = ( qp.coherent(N, self.dispAmp) -
                         1j *qp.coherent(N, -self.dispAmp) ).unit()
-        
-        #Logical qubit operators 
+
+        #Logical qubit operators
         Zp = qp.coherent_dm(N, self.dispAmp)
         Zm = qp.coherent_dm(N, -self.dispAmp)
         Xp = evenCat * evenCat.dag()
@@ -42,7 +42,7 @@ class Bell_Cat(CV_Measurements):
                         'Z':qp.sigmaz()
                         }
 
-        c_ops = { 'I':qp.identity(N),
+        c_ops = { 'I':Zp+Zm,
                         'X':Xp-Xm,
                         'Y':Yp-Ym,
                         'Z':Zp-Zm

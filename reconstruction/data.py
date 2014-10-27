@@ -4,9 +4,10 @@ import qutip as qp
 import os
 import pandas
 import scipy.optimize
+import scipy.linalg
 
 from design import designW, designQ, designCW
-from regression import reg_inversion, reg_cvx, reg_minimize
+from regression import reg_inversion, reg_cvx, reg_minimize, reg_speedy
 from utilities import complexStack, complexUnstack, interpDispGrid
 
 
@@ -92,23 +93,42 @@ class CV_Measurement(object):
             # perform linear regression by matrix inversion where we solve
             #   the problem: Min(M*x - W) by solving for invM  = (M.T * M)^-1 * M.T
             #   and calculating x^hat = invM * W.
-            self.density_matrix_inv = reg_inversion(M, W, N,)
-            return self.density_matrix_inv
+            self.density_matrix = reg_inversion(M, W, N,)
+            return self.density_matrix
 
         elif method is 'convex':
             # perform convex optimization using CVXPY toolbox and restricting
             #   the calculated density matrix to be postive semi-definite
-            self.density_matrix_cvx = reg_cvx(M, W, N, tolerance)
-            return self.density_matrix_cvx
+            self.density_matrix = reg_cvx(M, W, N, tolerance)
+            return self.density_matrix
 
         elif method is 'minimize':
             # performs least squares regression with a constraint that the
             # trace of the density matrix must equal one.
-            self.density_matrix_min = reg_minimize(M, W, N, tolerance)
-            return self.density_matrix_min
+            self.density_matrix = reg_minimize(M, W, N, tolerance)
+            return self.density_matrix
+
+        elif method is 'speedy':
+            # performs linear regression by matrix inversion then
+            # removes negative eigenvalues (Smolin 2011).
+            self.density_matrix = reg_speedy(M, W, N)
+            return self.density_matrix
 
         else:
-            raise TypeError("method must be either 'inversion', 'convex', or 'minimize'")
+            raise TypeError("method must be either 'inversion', 'convex', 'minimize', or 'speedy'")
+
+    def posEigenvalues(self):
+        '''Following the steps defined in Smolin 'Maximum Liklihood, minimum effort' (2011) to turn a Hermitian matrix positive semidefinite.
+        '''
+
+        if self.density_matrix is None:
+            raise NameError("A regression must be run and density matrix defined to correct positive semidefinite-ness.")
+
+        rho = self.density_matrix
+        (evalue, evector) = scipy.linalg.eigh(rho)
+        return (evalue, evector)
+
+
 
     def plotData(self, data_frame_plot = False):
         """Plots the imported or simulated data found in 'data_raw'."""
@@ -118,7 +138,7 @@ class CV_Measurement(object):
             fig_shape = ( np.max(np.real(self.displacements)),
                                 np.max(np.imag(self.displacements)) )
             fig_shape = fig_shape/np.max(fig_shape)
-            fig = plt.figure(figsize = 10*fig_shape)
+            fig = plt.figure(figsize = 3*fig_shape)
             x, y = np.real(self.displacements), np.imag(self.displacements)
             ax = fig.add_subplot(111) #, projection='3d')
             ax.pcolor(x, y, self.data_to_fit)
@@ -377,8 +397,7 @@ class CV_QCWigner(CV_Measurement):
         if self.basis is None:
             raise ValueError("basis must be defined to calculate design matrix")
 
-        self.design_matrix = designCW(basis = self.basis, dispGrid = self.displacements,
-                                        q_proj = self.qubit_projection, method = method)
+        self.design_matrix = designCW(basis = self.basis, dispGrid = self.displacements, q_proj = self.qubit_projection, method = method)
 
         M_shape = self.design_matrix.shape
         M_flat = self.design_matrix.reshape(np.product(M_shape[0:2]),
