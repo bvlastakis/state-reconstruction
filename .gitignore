@@ -2,3 +2,7 @@ build/
 *.pyc
 .ipynb_checkpoints
 .DS_Store
+.eps
+.ai
+.pdf
+.png

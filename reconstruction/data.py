@@ -303,12 +303,37 @@ class CV_Wigner(CV_Measurement):
         wigner_no_noise = 0.5 * np.pi * qp.wigner( state, np.real(dispGrid[0,:]),
                                                 np.imag(dispGrid[:,0]), g = 2 )
         # calculate and add random noise to produced wigner function
-        noise = np.random.normal(0, noise_amp, wigner_no_noise.shape)
+        if noise_amp > 0:
+            noise = np.random.normal(0, noise_amp, wigner_no_noise.shape)
+        else:
+            noise = 0
         sim_wigner = wigner_no_noise + noise
 
         self.displacements = dispGrid
         self.data_to_fit = sim_wigner
         self.data_title = 'Simulated Wigner function'
+
+    def getObs(self, c_op):
+
+        #retrieve displacement steps in Re and Im directions
+        diff = self.displacements[0,0] - self.displacements[1,1]
+        #retrieve and reshape raw data
+        overlap_data = self.data_to_fit.reshape(self.displacements.shape)
+
+        #create obvservable in continuous variable basis
+        #WARNING! Cavity identity requires an infinitely large truncation basis
+            #do not build this using a truncated identity
+        # obs_discrete = qp.tensor(q_op, c_op)
+
+        obs_continuous = self.plotDesign(state = c_op, show = False)
+        obs_continuous = obs_continuous.reshape(self.displacements.shape)
+
+        #Simply do a reimann sum
+        toSum = np.multiply(overlap_data, obs_continuous)
+        result = np.sum(toSum) * np.real(diff) * np.imag(diff) * 4 / np.pi
+
+        return result
+
 
 class CV_Qfunction(CV_Measurement):
     """Imported data file which corresponds to a contunuous variable measurement

@@ -1,6 +1,9 @@
 import qutip as qp
-from datas import CV_Measurements
 import numpy as np
+import matplotlib.pyplot as plt
+from itertools import product
+from datas import CV_Measurements
+from data import CV_Wigner
 
 
 class Bell_Cat(CV_Measurements):
@@ -65,3 +68,75 @@ class Bell_Cat(CV_Measurements):
                 rho_reduced += norm * qp.tensor(q_ops[q_key],q_ops[c_key]) / 4
 
         self.rho_reduced = rho_reduced
+
+    def paulibar(self, fig = None, ax = None, plot = True):
+
+        q_ops, c_ops = self.makeOps()
+
+        #list of strings representing each of 16 pauli observables
+        # ticks = [''.join(p) for p in product('IXYZ',repeat = 2)]
+        ticks = ['II', 'IX', 'IY','IZ', 'XI', 'YI', 'ZI','XX',
+             'XY', 'XZ', 'YX','YY', 'YZ', 'ZX', 'ZY','ZZ']
+
+        ops = {}
+        for key1, key2 in ticks:
+            ops[key1 + key2] = self.getObs(q_ops[key1], c_ops[key2])
+
+        ops_list = []
+        for tick in ticks:
+            ops_list.append( ops[tick] )
+
+        if plot is True:
+            if ax is None:
+                fig, ax = plt.subplots()
+            ax.set_ylim([-1,1])
+            index = np.arange(len(ops))
+            opacity = 1
+            rects1 = plt.bar(index, ops_list,
+                             alpha=opacity,
+                             color='b',
+                             label='')
+
+            plt.xlabel('Expectation Value')
+            plt.ylabel('Observable')
+            plt.title('Pauli Set')
+            plt.legend()
+            plt.xticks(index + 0.5, ticks )
+            plt.tight_layout()
+            plt.show()
+
+        return ops, ops_list
+
+    def buildDensityMatrix(self, ops):
+        #build density matrix from set of Pauli correlations
+        q_ops, c_ops = self.makeOps()
+
+        rho = 0
+        for key, val in ops.iteritems():
+            rho += 0.25*val * qp.tensor(q_ops[ key[0] ], q_ops[ key[0] ])
+
+        self.rho_overlap = rho
+        return rho
+
+class Overlap(CV_Wigner):
+    ''' Method for calculating elements of the density matrix using overlap integrals.
+    '''
+    def __init__():
+        super(Overlap, self).__init__()
+
+    def buildDensity():
+
+        N = self.basis
+        rho = np.empty((N, N))
+        for idx in np.arange(5):
+            for idy in np.arange(5):
+                c_op = qp.fock(N, idx) * (qp.fock(N, idy)).dag()
+        self.getObs(c_op)
+
+
+        return rho
+
+
+
+
+

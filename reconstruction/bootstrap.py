@@ -11,7 +11,7 @@ class BS_residual(object):
 	"""Organizes a set of reconstructions to calculate uncertainty in fitted values. We
 	will use a method called 'residual bootstrapping' where we take a dataset, perform
 	a reconstruction, determine residuals, resample residuals, and add them to the
-	reconstructed data. Performing many iterations will determine uncertainty in the 
+	reconstructed data. Performing many iterations will determine uncertainty in the
 	original reconstructed dataset.
 	"""
 
@@ -38,7 +38,7 @@ class BS_residual(object):
 		#perform regression
 		self.reconstruction = data.regression(method = self.method)
 		if show is True:
-			data.plotWigner(self.reconstruction, factor = 10, 
+			data.plotWigner(self.reconstruction, factor = 10,
                 	title = 'Reconstructed Wigner function')
 		#reconstructed response (wigner function)
 		self.response = data.plotDesign(state = self.reconstruction, show = False)
@@ -48,16 +48,16 @@ class BS_residual(object):
 
 	def plotResidual(self):
 		fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(5, 5))
-		ax.pcolor(np.real(self.data.displacements), np.imag(self.data.displacements), 
+		ax.pcolor(np.real(self.data.displacements), np.imag(self.data.displacements),
 					self.residualGrid)
 		ax.set_title('Residuals')
 
-		fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(5, 5))
-		self.residual_frame.hist(ax = ax, bins = 15)
+		# fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(5, 5))
+		ax = self.residual_frame.hist(bins = 15)
 		ax.set_title('Residual distribution')
 
 		print self.residual_frame.describe()
-	
+
 	def sampleResidual(self, method = 'resample'):
 		"""Creates a new residual grid based off of two different methods, 'resample'
 		and 'regenerate'. Returns a newly sample residual grid
@@ -97,7 +97,9 @@ class BS_residual(object):
 
 			self.data.data_to_fit = self.response + residual_to_add
 			dM = self.data.regression(method = method_reg)
-			D = pd.DataFrame(np.real(dM.reshape( (1,self.basis**2) )) )
+			dM_norm = np.real(dM) / np.real(np.trace(dM))
+			dM_shape = dM_norm.reshape( (1,self.basis**2) )
+			D = pd.DataFrame( dM_shape )
 			self.bootstrap_frame = pd.concat( (self.bootstrap_frame, D),
 												ignore_index = True )
 			print i
@@ -125,7 +127,7 @@ class BS_residual(object):
 
 		density_matrix = qp.Qobj(self.reconstruction)
 		uncertainty_matrix = self.bootstrap_frame.std(axis = 0)
-		uncertainty_matrix = uncertainty_matrix.to_dense().reshape((self.basis,self.basis)) 
+		uncertainty_matrix = uncertainty_matrix.to_dense().reshape((self.basis,self.basis))
 		uncertainty_square = qp.Qobj(uncertainty_matrix**2)
 		operator_square = qp.Qobj(operator.data.toarray()**2)
 
@@ -136,7 +138,7 @@ class BS_residual(object):
 
 
 
-		
-		
+
+
 
 
